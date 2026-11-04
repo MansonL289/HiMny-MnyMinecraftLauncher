@@ -49,7 +49,12 @@ public sealed partial class DownloadsPage : Page
                 }
                 break;
             case "tasks":
-                if (DlFrame.CurrentSourcePageType != typeof(DownloadTasksPage))
+                // 正看着某个任务的详情子页时，点侧栏「下载任务」回到列表
+                if (DlFrame.CurrentSourcePageType == typeof(DownloadJobDetailPage) && DlFrame.CanGoBack)
+                {
+                    DlFrame.GoBack();
+                }
+                else if (DlFrame.CurrentSourcePageType != typeof(DownloadTasksPage))
                 {
                     DlFrame.Navigate(typeof(DownloadTasksPage));
                 }

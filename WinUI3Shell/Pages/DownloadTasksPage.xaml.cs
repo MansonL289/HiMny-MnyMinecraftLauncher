@@ -32,12 +32,24 @@ public sealed class JobRow : INotifyPropertyChanged
     public Brush StatusBrush => (Brush)Application.Current.Resources[
         Job.Error != null ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush"];
 
+    /// <summary>排队中（还没开始下载）：任务名显示灰色。</summary>
+    public bool IsQueued => !Job.Done && Job.StatusText == "排队中...";
+
+    /// <summary>任务名颜色：完成/进行中白色，排队灰色（与状态色规范一致）。</summary>
+    public Brush TitleBrush => (Brush)Application.Current.Resources[
+        Done || !IsQueued ? "TextFillColorPrimaryBrush" : "TextFillColorSecondaryBrush"];
+
+    /// <summary>完成的任务名加删除线。</summary>
+    public Windows.UI.Text.TextDecorations TitleDecorations => Done
+        ? Windows.UI.Text.TextDecorations.Strikethrough
+        : Windows.UI.Text.TextDecorations.None;
+
     /// <summary>进度 0~1（绑定 ProgressBar.Value）。</summary>
     public double Fraction => Math.Clamp(Job.Fraction, 0, 1);
     /// <summary>百分比文字，如 45%。</summary>
     public string PercentText => $"{(int)Math.Round(Fraction * 100)}%";
-    /// <summary>进行中的任务才显示进度条/百分比。</summary>
-    public Visibility ProgressVisibility => Job.Done ? Visibility.Collapsed : Visibility.Visible;
+    /// <summary>进行中的任务才显示进度条/百分比（排队中转圈即可）。</summary>
+    public Visibility ProgressVisibility => Done || IsQueued ? Visibility.Collapsed : Visibility.Visible;
     public Visibility PercentVisibility => ProgressVisibility;
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -107,6 +119,15 @@ public sealed partial class DownloadTasksPage : Page
         if (sender is FrameworkElement { Tag: JobRow row } && !row.Job.Done)
         {
             row.Job.Cts.Cancel();
+        }
+    }
+
+    // 点击任务行：进入该任务的详情子页
+    private void JobList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is JobRow row)
+        {
+            Frame.Navigate(typeof(DownloadJobDetailPage), row.Job);
         }
     }
 

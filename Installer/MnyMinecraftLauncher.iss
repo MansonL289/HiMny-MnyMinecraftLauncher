@@ -3,7 +3,7 @@
 ;   dotnet publish WinUI3Shell\WinUI3Shell.csproj -c Release -p:Platform=x64 -p:SelfContained=true -p:WindowsAppSDKSelfContained=true
 
 #define AppName "MnyMinecraftLauncher"
-#define AppVersion "Beta-V1.2"
+#define AppVersion "Beta-V1.4"
 #define AppPublisher "MNY"
 #define AppURL "https://github.com/MansonL289/HiMny-MnyMinecraftLauncher"
 #define AppExeName "MnyMinecraftLauncher.exe"

@@ -279,6 +279,41 @@ public sealed partial class HomePage : Page
         return lastExists && lastTime >= newestTime ? lastDir : newestDir;
     }
 
+    /// <summary>
+    /// 启动界面当前选中的版本目录名（与首页默认选中逻辑一致）：
+    /// 上次启动过的版本优先，否则最新下载的完整版本；一个版本都没有则返回空。
+    /// 供 Forge 等需要按游戏版本过滤的页面直接使用。
+    /// </summary>
+    public static string CurrentLaunchDir()
+    {
+        string? newestDir = null;
+        DateTime newestTime = DateTime.MinValue;
+        if (Directory.Exists(McPaths.VersionsDir))
+        {
+            foreach (string dir in Directory.GetDirectories(McPaths.VersionsDir))
+            {
+                string name = Path.GetFileName(dir);
+                var meta = VersionMeta.Load(name);
+                if (meta == null || !meta.IsComplete(name)) continue;
+                DateTime created = Directory.GetCreationTime(dir);
+                if (newestDir == null || created > newestTime)
+                {
+                    newestDir = name;
+                    newestTime = created;
+                }
+            }
+        }
+
+        string lastDir = AppSettings.LastVersion;
+        DateTime lastTime = AppSettings.LastLaunchTicks > 0
+            ? new DateTime(AppSettings.LastLaunchTicks)
+            : DateTime.MinValue;
+        var lastMeta = lastDir.Length > 0 ? VersionMeta.Load(lastDir) : null;
+        bool lastExists = lastMeta != null && lastMeta.IsComplete(lastDir);
+
+        return lastExists && lastTime >= newestTime ? lastDir : newestDir ?? "";
+    }
+
     // 用 Composition DropShadow 给直角头像加阴影（挂在头像后面的承载层上）
     private void ApplyAvatarShadow()
     {

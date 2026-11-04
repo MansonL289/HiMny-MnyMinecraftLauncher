@@ -229,7 +229,13 @@ public static class Downloader
                 {
                     TryDelete(tmp);
                 }
-                await DownloadToAsync(url, tmp, canSwitch, onChunk, ct);
+                // 大文件走多线程分段下载；已有断点半成品时保持单线程续传，避免推倒重来
+                bool hasPartial = canSwitch && File.Exists(tmp) && new FileInfo(tmp).Length > 0;
+                bool segmented = !hasPartial && await TryDownloadSegmentedAsync(url, tmp, t.Size, onChunk, ct);
+                if (!segmented)
+                {
+                    await DownloadToAsync(url, tmp, canSwitch, onChunk, ct);
+                }
                 File.Move(tmp, t.Dest, true);
                 if (IsValid(t)) return;
                 TryDelete(t.Dest);
@@ -284,6 +290,119 @@ public static class Downloader
     {
         try { File.Delete(path); }
         catch { /* 忽略清理失败 */ }
+    }
+
+    // ===== 单文件多线程（分段）下载 =====
+
+    /// <summary>每段目标大小约 2MB，单文件最多 8 个并发连接。</summary>
+    private const long SegLen = 2 * 1024 * 1024;
+    private const int MaxSegments = 8;
+
+    /// <summary>
+    /// 单文件分段并发下载：首个请求用开放式 Range（bytes=0-）探测服务器是否支持断点，
+    /// 响应的 Content-Range 给出总大小后，把剩余部分拆成多段并发拉取。
+    /// 返回 false 表示服务器不支持 Range 或文件太小没必要分段，调用方回退单线程。
+    /// 文件完整性最终由 DownloadFileAsync 的 sha1/size 校验兜底。
+    /// </summary>
+    private static async Task<bool> TryDownloadSegmentedAsync(
+        string url, string tmp, long? knownSize, Action<long>? onChunk, CancellationToken ct)
+    {
+        // 已知太小的文件不值得分段（省一次探测往返）
+        if (knownSize is long ks && ks < 2 * SegLen) return false;
+
+        using var seg0Req = new HttpRequestMessage(HttpMethod.Get, url);
+        seg0Req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, null);
+        using var seg0Resp = await McHttp.Client.SendAsync(seg0Req, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (seg0Resp.StatusCode != HttpStatusCode.PartialContent)
+            return false; // 服务器无视 Range（回了 200 全量），走单线程
+
+        long? total = seg0Resp.Content.Headers.ContentRange?.Length;
+        if (total is not long size || size <= 0)
+        {
+            // 服务器不给总大小（bytes 0-x/*），没法分段：这条流本来就是全量，直接读完
+            await using var input = await seg0Resp.Content.ReadAsStreamAsync(ct);
+            await using var output = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16, true);
+            await PumpRangeAsync(input, output, 0, long.MaxValue, onChunk, ct);
+            return true;
+        }
+
+        int segments = (int)Math.Min(MaxSegments, Math.Max(1, size / SegLen));
+        if (segments <= 1)
+        {
+            await using var input = await seg0Resp.Content.ReadAsStreamAsync(ct);
+            await using var output = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16, true);
+            await PumpRangeAsync(input, output, 0, long.MaxValue, onChunk, ct);
+            return true;
+        }
+        long segLen = (size + segments - 1) / segments;
+
+        await using (var seg0Stream = await seg0Resp.Content.ReadAsStreamAsync(ct))
+        await using (var seg0File = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, 1 << 16, true))
+        {
+            seg0File.SetLength(size); // 预分配，其余段按偏移直接写入
+
+            using var segCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var jobs = new List<Task>(segments);
+
+            // 第 0 段：复用已拿到的响应流，只写 [0, segLen)
+            jobs.Add(PumpRangeAsync(seg0Stream, seg0File, 0, segLen, onChunk, segCts.Token));
+
+            // 其余段：各开一条连接按 Range 并发下载
+            for (int i = 1; i < segments; i++)
+            {
+                long start = i * segLen;
+                long end = Math.Min(size, start + segLen) - 1;
+                jobs.Add(DownloadSegmentAsync(url, tmp, start, end, onChunk, segCts.Token));
+            }
+
+            try
+            {
+                await Task.WhenAll(jobs);
+            }
+            catch
+            {
+                // 任一段失败：取消其余段，等全部退出（句柄释放）后再抛，避免 .part 删不掉
+                segCts.Cancel();
+                try { await Task.WhenAll(jobs); }
+                catch { /* 异常已在上方抛出 */ }
+                throw;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>把流写入文件偏移 offset 起的 count 字节；越界部分属于其他段，不读不写。</summary>
+    private static async Task PumpRangeAsync(Stream input, FileStream output, long offset, long count,
+        Action<long>? onChunk, CancellationToken ct)
+    {
+        var buffer = new byte[1 << 16];
+        long pos = offset, end = offset + count;
+        output.Seek(offset, SeekOrigin.Begin);
+        while (pos < end)
+        {
+            int want = (int)Math.Min(buffer.Length, end - pos);
+            int n = await input.ReadAsync(buffer.AsMemory(0, want), ct);
+            if (n <= 0) break;
+            await output.WriteAsync(buffer.AsMemory(0, n), ct);
+            await ThrottleAsync(n, ct);
+            onChunk?.Invoke(n);
+            pos += n;
+        }
+    }
+
+    /// <summary>单段下载：Range [start, end] 写入 tmp 的对应偏移。</summary>
+    private static async Task DownloadSegmentAsync(string url, string tmp, long start, long end,
+        Action<long>? onChunk, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(start, end);
+        using var resp = await McHttp.Client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        resp.EnsureSuccessStatusCode();
+        if (resp.StatusCode != HttpStatusCode.PartialContent)
+            throw new InvalidOperationException($"分段下载被服务器拒绝: {url}");
+        await using var input = await resp.Content.ReadAsStreamAsync(ct);
+        await using var output = new FileStream(tmp, FileMode.Open, FileAccess.Write, FileShare.ReadWrite, 1 << 16, true);
+        await PumpRangeAsync(input, output, start, end - start + 1, onChunk, ct);
     }
 
     /// <summary>并发下载一批任务，进度按字节+文件数汇报（约每 100ms 一次）。</summary>

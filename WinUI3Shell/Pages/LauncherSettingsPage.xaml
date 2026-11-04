@@ -41,15 +41,6 @@
                     PlaceholderText="如 http://127.0.0.1:7890，留空不使用代理" />
                 <Button Click="SaveProxy_Click" Content="保存" />
             </StackPanel>
-            <TextBlock
-                FontSize="12"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Text="修改后需重启启动器生效。" />
-            <TextBlock
-                x:Name="ProxyStatus"
-                FontSize="12"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                TextWrapping="Wrap" />
         </StackPanel>
     </StackPanel>
     </ScrollViewer>

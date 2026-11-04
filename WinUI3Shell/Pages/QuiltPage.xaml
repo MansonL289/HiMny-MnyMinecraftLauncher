@@ -9,13 +9,13 @@
             Style="{StaticResource TitleTextBlockStyle}"
             Text="Quilt 安装器" />
 
-        <!-- 说明行 -->
+        <!-- 缓存/刷新状态单独一行，避免和按钮挤在一起被截断 -->
         <TextBlock
+            x:Name="StatusText"
             Grid.Row="1"
-            Margin="0,8,0,12"
+            Margin="0,8,0,8"
             FontSize="12"
             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-            Text="Quilt 官方安装器：选中后加入下载列表，下载完成会放进库，可直接安装到已下载的版本。"
             TextWrapping="Wrap" />
 
         <Grid Grid.Row="2">
@@ -42,11 +42,6 @@
                 IsEnabled="False"
                 Style="{StaticResource AccentButtonStyle}"
                 Click="QueueSelected_Click" />
-            <TextBlock
-                x:Name="StatusText"
-                VerticalAlignment="Center"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                TextTrimming="CharacterEllipsis" />
         </StackPanel>
     </Grid>
 </Page>

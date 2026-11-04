@@ -17,6 +17,8 @@ public sealed partial class OptiFinePage : Page
     private List<OfChoice> _ofVersions = [];
     private List<WinUI3Shell.Services.Mc.LiteLoader.LlVersion> _llVersions = [];
     private string _mode = "optifine";
+    /// <summary>OptiFine 列表加载序号：快速切换基础版本时丢弃过期结果。</summary>
+    private int _ofSeq;
 
     public OptiFinePage()
     {
@@ -29,12 +31,14 @@ public sealed partial class OptiFinePage : Page
         if (e.Parameter is string mode && mode == "liteloader")
         {
             _mode = "liteloader";
+            TitleText.Text = "LiteLoader";
             OfSection.Visibility = Visibility.Collapsed;
             LlSection.Visibility = Visibility.Visible;
         }
         else
         {
             _mode = "optifine";
+            TitleText.Text = "OptiFine";
             OfSection.Visibility = Visibility.Visible;
             LlSection.Visibility = Visibility.Collapsed;
         }
@@ -74,7 +78,9 @@ public sealed partial class OptiFinePage : Page
                 StatusText.Text = "没有可用的原版版本，请先在「游戏」页下载一个原版版本。";
             }
 
-            _llVersions = await WinUI3Shell.Services.Mc.LiteLoader.ListAsync();
+            // LiteLoader 列表：先拿磁盘缓存立即显示，下面再联网刷新
+            var cachedLl = WinUI3Shell.Services.Mc.LiteLoader.CachedList();
+            if (cachedLl != null) _llVersions = cachedLl;
         }
         catch (Exception ex)
         {
@@ -85,7 +91,33 @@ public sealed partial class OptiFinePage : Page
             PageRing.Visibility = Visibility.Collapsed;
             PageRing.IsActive = false;
         }
+
+        await RefreshLlAsync();
         await LoadOfAsync();
+    }
+
+    /// <summary>联网刷新 LiteLoader 列表（调用方保证页面已显示缓存）。</summary>
+    private async Task RefreshLlAsync()
+    {
+        bool hasCache = _llVersions.Count > 0;
+        PageRing.IsActive = true;
+        PageRing.Visibility = Visibility.Visible;
+        try
+        {
+            _llVersions = await WinUI3Shell.Services.Mc.LiteLoader.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            if (!hasCache)
+            {
+                StatusText.Text = "获取 LiteLoader 列表失败：" + ex.Message;
+            }
+        }
+        finally
+        {
+            PageRing.Visibility = Visibility.Collapsed;
+            PageRing.IsActive = false;
+        }
     }
 
     private async Task LoadOfAsync()
@@ -94,21 +126,48 @@ public sealed partial class OptiFinePage : Page
 
         if (_mode == "optifine")
         {
-            _ofVersions = [];
-            OfCombo.ItemsSource = null;
-            OfCombo.PlaceholderText = "正在获取版本列表…";
+            int seq = ++_ofSeq;
+            // 1) 先显示磁盘缓存，不用等网络
+            var cached = OptiFine.CachedList(mcVersion);
+            if (cached != null)
+            {
+                FillOf(cached);
+            }
+            else
+            {
+                _ofVersions = [];
+                OfCombo.ItemsSource = null;
+                OfCombo.PlaceholderText = "正在获取版本列表…";
+            }
+
+            // 2) 联网刷新，成功后覆盖缓存
+            PageRing.IsActive = true;
+            PageRing.Visibility = Visibility.Visible;
             try
             {
                 var list = await OptiFine.ListAsync(mcVersion);
-                _ofVersions = list.Select(v => new OfChoice($"{v.Type} {v.Patch}", v)).ToList();
-                OfCombo.ItemsSource = _ofVersions.Select(v => new ComboBoxItem { Content = v.Text, Tag = v }).ToList();
-                OfCombo.PlaceholderText = _ofVersions.Count > 0 ? "选择 OptiFine 版本" : "该版本没有 OptiFine";
-                if (_ofVersions.Count > 0) OfCombo.SelectedIndex = 0;
+                if (seq != _ofSeq) return; // 期间又切了基础版本，丢弃
+                FillOf(list);
+                StatusText.Text = $"OptiFine 共 {_ofVersions.Count} 个版本";
             }
             catch (Exception ex)
             {
-                OfCombo.PlaceholderText = "获取失败";
-                StatusText.Text = "获取 OptiFine 版本失败：" + ex.Message;
+                if (seq != _ofSeq) return;
+                if (cached == null)
+                {
+                    OfCombo.PlaceholderText = "获取失败";
+                }
+                StatusText.Text = cached != null
+                    ? $"网络获取失败，继续显示缓存（{OptiFine.AgeText(mcVersion)}）：{ex.Message}"
+                    : "获取 OptiFine 版本失败：" + ex.Message;
+            }
+            finally
+            {
+                if (seq == _ofSeq)
+                {
+                    PageRing.Visibility = Visibility.Collapsed;
+                    PageRing.IsActive = false;
+                }
             }
         }
         else
@@ -121,6 +180,18 @@ public sealed partial class OptiFinePage : Page
             if (candidates.Count > 0) LlCombo.SelectedIndex = 0;
             QueueLlButton.IsEnabled = candidates.Count > 0;
         }
+    }
+
+    /// <summary>填充 OptiFine 下拉框；尽量保留用户已选项。</summary>
+    private void FillOf(List<OptiFine.OfVersion> list)
+    {
+        string keep = (OfCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
+        _ofVersions = list.Select(v => new OfChoice($"{v.Type} {v.Patch}", v)).ToList();
+        OfCombo.ItemsSource = _ofVersions.Select(v => new ComboBoxItem { Content = v.Text, Tag = v }).ToList();
+        OfCombo.PlaceholderText = _ofVersions.Count > 0 ? "选择 OptiFine 版本" : "该版本没有 OptiFine";
+        int index = keep.Length > 0 ? _ofVersions.FindIndex(v => v.Text == keep) : -1;
+        if (index >= 0) OfCombo.SelectedIndex = index;
+        else if (_ofVersions.Count > 0) OfCombo.SelectedIndex = 0;
     }
 
     private bool TryGetBase(out string baseDir, out string mcVersion)

@@ -5,7 +5,47 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <ScrollViewer>
+        <!-- 下拉框类设置在前，其他（内存）在后 -->
         <StackPanel Spacing="32">
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="游戏窗口大小" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <ComboBox
+                    x:Name="WindowSizeBox"
+                    Width="200"
+                    HorizontalAlignment="Left"
+                    SelectionChanged="WindowSizeBox_SelectionChanged">
+                    <ComboBoxItem Content="854 × 480" Tag="854,480" />
+                    <ComboBoxItem Content="1280 × 720" Tag="1280,720" />
+                    <ComboBoxItem Content="1600 × 900" Tag="1600,900" />
+                    <ComboBoxItem Content="1920 × 1080" Tag="1920,1080" />
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="游戏语言" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <ComboBox
+                    x:Name="LanguageBox"
+                    Width="320"
+                    HorizontalAlignment="Left"
+                    MaxDropDownHeight="400"
+                    SelectionChanged="LanguageBox_SelectionChanged" />
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="版本隔离" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <ComboBox
+                    x:Name="IsolationBox"
+                    Width="360"
+                    HorizontalAlignment="Left"
+                    SelectionChanged="IsolationBox_SelectionChanged">
+                    <ComboBoxItem Content="关闭" Tag="off" />
+                    <ComboBoxItem Content="隔离可安装 Mod 的版本" Tag="modded" />
+                    <ComboBoxItem Content="隔离非正式版" Tag="unofficial" />
+                    <ComboBoxItem Content="隔离可安装 Mod 的版本与非正式版" Tag="modded_unofficial" />
+                    <ComboBoxItem Content="隔离所有版本" Tag="all" />
+                </ComboBox>
+            </StackPanel>
 
             <StackPanel Spacing="8">
                 <TextBlock Text="分配内存" Style="{StaticResource BodyStrongTextBlockStyle}" />
@@ -87,45 +127,6 @@
                     x:Name="MemoryInfoText"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     TextWrapping="Wrap" />
-            </StackPanel>
-
-            <StackPanel Spacing="8">
-                <TextBlock Text="游戏窗口大小" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <ComboBox
-                    x:Name="WindowSizeBox"
-                    Width="200"
-                    HorizontalAlignment="Left"
-                    SelectionChanged="WindowSizeBox_SelectionChanged">
-                    <ComboBoxItem Content="854 × 480" Tag="854,480" />
-                    <ComboBoxItem Content="1280 × 720" Tag="1280,720" />
-                    <ComboBoxItem Content="1600 × 900" Tag="1600,900" />
-                    <ComboBoxItem Content="1920 × 1080" Tag="1920,1080" />
-                </ComboBox>
-            </StackPanel>
-
-            <StackPanel Spacing="8">
-                <TextBlock Text="游戏语言" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <ComboBox
-                    x:Name="LanguageBox"
-                    Width="320"
-                    HorizontalAlignment="Left"
-                    MaxDropDownHeight="400"
-                    SelectionChanged="LanguageBox_SelectionChanged" />
-            </StackPanel>
-
-            <StackPanel Spacing="8">
-                <TextBlock Text="版本隔离" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <ComboBox
-                    x:Name="IsolationBox"
-                    Width="360"
-                    HorizontalAlignment="Left"
-                    SelectionChanged="IsolationBox_SelectionChanged">
-                    <ComboBoxItem Content="关闭" Tag="off" />
-                    <ComboBoxItem Content="隔离可安装 Mod 的版本" Tag="modded" />
-                    <ComboBoxItem Content="隔离非正式版" Tag="unofficial" />
-                    <ComboBoxItem Content="隔离可安装 Mod 的版本与非正式版" Tag="modded_unofficial" />
-                    <ComboBoxItem Content="隔离所有版本" Tag="all" />
-                </ComboBox>
             </StackPanel>
 
         </StackPanel>

@@ -7,7 +7,14 @@
 
     <Grid>
         <ScrollViewer>
-            <StackPanel Spacing="12" MaxWidth="560" HorizontalAlignment="Left">
+            <StackPanel Spacing="16" MaxWidth="560" HorizontalAlignment="Left">
+                <!-- 页面标题随模式切换：OptiFine / LiteLoader -->
+                <TextBlock
+                    x:Name="TitleText"
+                    Margin="0,0,0,8"
+                    Style="{StaticResource TitleTextBlockStyle}"
+                    Text="OptiFine" />
+
                 <ComboBox
                     x:Name="BaseCombo"
                     Width="320"
@@ -17,33 +24,25 @@
 
                 <!-- OptiFine 区块 -->
                 <StackPanel x:Name="OfSection" Spacing="12">
-                    <TextBlock
-                        Style="{StaticResource BodyStrongTextBlockStyle}"
-                        Text="OptiFine" />
                     <ComboBox
                         x:Name="OfCombo"
                         Width="320"
                         Header="OptiFine 版本"
                         HorizontalAlignment="Left"
                         PlaceholderText="正在获取版本列表…" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button
-                            x:Name="QueueOfButton"
-                            Click="QueueOf_Click"
-                            Content="加入下载列表"
-                            Style="{StaticResource AccentButtonStyle}" />
-                    </StackPanel>
+                    <Button
+                        x:Name="QueueOfButton"
+                        Click="QueueOf_Click"
+                        Content="加入下载列表"
+                        Style="{StaticResource AccentButtonStyle}" />
                 </StackPanel>
 
                 <!-- LiteLoader 区块 -->
                 <StackPanel x:Name="LlSection" Spacing="12">
                     <TextBlock
-                        Style="{StaticResource BodyStrongTextBlockStyle}"
-                        Text="LiteLoader" />
-                    <TextBlock
                         FontSize="12"
-                        Opacity="0.75"
-                        Text="仅支持 Minecraft 1.12.2 及更早版本，需要先选好对应基础版本。"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="仅支持 Minecraft 1.12.2 及更早版本。"
                         TextWrapping="Wrap" />
                     <ComboBox
                         x:Name="LlCombo"
@@ -51,19 +50,16 @@
                         Header="LiteLoader 版本"
                         HorizontalAlignment="Left"
                         PlaceholderText="正在获取版本列表…" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button
-                            x:Name="QueueLlButton"
-                            Click="QueueLl_Click"
-                            Content="加入下载列表"
-                            IsEnabled="False"
-                            Style="{StaticResource AccentButtonStyle}" />
-                    </StackPanel>
+                    <Button
+                        x:Name="QueueLlButton"
+                        Click="QueueLl_Click"
+                        Content="加入下载列表"
+                        IsEnabled="False"
+                        Style="{StaticResource AccentButtonStyle}" />
                 </StackPanel>
 
                 <TextBlock
                     x:Name="StatusText"
-                    Margin="0,4,0,0"
                     FontSize="12"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     TextWrapping="Wrap" />

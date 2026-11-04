@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinUI3Shell.Pages.StorageVersionsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+        <TextBlock
+            Text="版本"
+            Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12">
+            <Button Click="SelectAll_Click" Content="全选" />
+            <Button
+                x:Name="DeleteButton"
+                Click="DeleteSelected_Click"
+                Content="删除所选"
+                Foreground="#FF6363"
+                IsEnabled="False" />
+            <TextBlock
+                x:Name="StatusText"
+                VerticalAlignment="Center"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+
+        <!-- 勾选可多选删除，点击单项进入该版本的存档批量删除 -->
+        <ListView
+            x:Name="VersionList"
+            Grid.Row="2"
+            IsItemClickEnabled="True"
+            ItemClick="VersionList_ItemClick">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <CheckBox
+                            IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                            Tag="{Binding Name}"
+                            VerticalAlignment="Center"
+                            Checked="VersionCheck_Changed"
+                            Unchecked="VersionCheck_Changed" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="{Binding Name}"
+                            TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
+</Page>

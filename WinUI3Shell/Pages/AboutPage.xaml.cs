@@ -12,7 +12,7 @@ namespace WinUI3Shell.Pages;
 /// <summary>设置 - 关于：版本信息、反馈/更新链接与更新检查。</summary>
 public sealed partial class AboutPage : Page
 {
-    private const string CurrentVersion = "Beta_1.4.20261101";
+    private const string CurrentVersion = "Beta_2.0.20261104";
     private const string TagsApi = "https://api.github.com/repos/MansonL289/HiMny-MnyMinecraftLauncher/tags";
 
     private static readonly HttpClient Http = CreateHttp();

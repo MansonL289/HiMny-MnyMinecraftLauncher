@@ -1,25 +1,15 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using WinUI3Shell.Services.Mc;
 
 namespace WinUI3Shell.Pages;
 
-/// <summary>设置 - 储存：清除翻译缓存、批量删除版本；点击版本进入存档批量删除。</summary>
+/// <summary>设置 - 储存：缓存、版本入口（子页批量删除）、重置。</summary>
 public sealed partial class StoragePage : Page
 {
-    /// <summary>版本列表行：勾选状态走绑定。</summary>
-    public sealed class VersionRow
-    {
-        public string Name { get; set; } = "";
-        public bool IsChecked { get; set; }
-    }
-
-    private List<VersionRow> _rows = new();
-
     public StoragePage()
     {
         InitializeComponent();
@@ -28,98 +18,89 @@ public sealed partial class StoragePage : Page
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
         RefreshCacheStatus();
-        RefreshVersions();
+        RefreshVersionSummary();
+    }
+
+    /// <summary>扫描下载失败的版本：无有效 json（空壳/垃圾目录）或 json 在但 jar 缺失（半成品）。正在下载的不算。</summary>
+    public static List<(string Name, long Bytes)> FailedVersions()
+    {
+        var list = new List<(string, long)>();
+        if (!Directory.Exists(McPaths.VersionsDir)) return list;
+        foreach (string dir in Directory.GetDirectories(McPaths.VersionsDir))
+        {
+            string name = Path.GetFileName(dir)!;
+            var meta = VersionMeta.Load(name);
+            if (meta != null && meta.IsComplete(dir)) continue;
+            if (DownloadManager.IsNameOrVersionBusy(name, meta?.Id ?? name)) continue;
+            long bytes = 0;
+            try
+            {
+                bytes = new DirectoryInfo(dir).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length);
+            }
+            catch { /* 目录被占用时按 0 算 */ }
+            list.Add((name, bytes));
+        }
+        return list;
     }
 
     private void RefreshCacheStatus()
     {
         long bytes = Translator.CacheSizeBytes();
-        CacheStatus.Text = bytes > 0 ? $"翻译缓存 {SizeText(bytes)}" : "翻译缓存为空";
+        var (netBytes, netCount) = NetCache.SizeInfo();
+        var failed = FailedVersions();
+        long failedBytes = failed.Sum(f => f.Bytes);
+
+        var parts = new List<string>
+        {
+            bytes > 0 ? $"翻译缓存 {SizeText(bytes)}" : "翻译缓存为空",
+        };
+        if (netCount > 0)
+        {
+            parts.Add($"网络缓存 {netCount} 项（{SizeText(netBytes)}）");
+        }
+        if (failed.Count > 0)
+        {
+            parts.Add($"下载失败的版本 {failed.Count} 个（{SizeText(failedBytes)}）");
+        }
+        CacheStatus.Text = string.Join(" · ", parts);
     }
 
-    private void ClearCache_Click(object sender, RoutedEventArgs e)
+    /// <summary>「版本」入口卡片上的摘要：版本总数（含失败版本数）。</summary>
+    private void RefreshVersionSummary()
     {
-        Translator.ClearCache();
-        RefreshCacheStatus();
-    }
-
-    private void RefreshVersions()
-    {
-        StatusText.Text = "";
-        _rows = new List<VersionRow>();
+        int total = 0;
         if (Directory.Exists(McPaths.VersionsDir))
         {
-            _rows = Directory.GetDirectories(McPaths.VersionsDir)
-                .Select(d => new VersionRow { Name = Path.GetFileName(d)! })
-                .OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
+            total = Directory.GetDirectories(McPaths.VersionsDir).Length;
         }
-        VersionList.ItemsSource = _rows;
-        DeleteButton.IsEnabled = false;
+        int failed = FailedVersions().Count;
+        VersionSummary.Text = total == 0
+            ? "还没有版本"
+            : failed > 0 ? $"共 {total} 个版本，其中 {failed} 个下载失败" : $"共 {total} 个版本";
     }
 
-    private void VersionCheck_Changed(object sender, RoutedEventArgs e)
+    private async void ClearCache_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is CheckBox box && box.Tag is string name)
-        {
-            var row = _rows.FirstOrDefault(r => r.Name == name);
-            if (row != null)
-            {
-                row.IsChecked = box.IsChecked == true;
-            }
-        }
-        DeleteButton.IsEnabled = _rows.Any(r => r.IsChecked);
-    }
-
-    /// <summary>点击版本项：进入该版本的存档批量删除页。</summary>
-    private void VersionList_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is VersionRow row)
-        {
-            Frame.Navigate(typeof(StorageSavesPage), row.Name);
-        }
-    }
-
-    private void SelectAll_Click(object sender, RoutedEventArgs e)
-    {
-        if (_rows.Count == 0) return;
-        bool target = !_rows.All(r => r.IsChecked);
-        foreach (var row in _rows)
-        {
-            row.IsChecked = target;
-        }
-        // 重建列表让勾选状态生效
-        VersionList.ItemsSource = null;
-        VersionList.ItemsSource = _rows;
-        DeleteButton.IsEnabled = target;
-    }
-
-    private async void DeleteSelected_Click(object sender, RoutedEventArgs e)
-    {
-        var names = _rows.Where(r => r.IsChecked).Select(r => r.Name).ToList();
-        if (names.Count == 0) return;
-
-        // 下载中的版本不能删（目录正在写入）
-        var busy = names.Where(n => DownloadManager.IsNameOrVersionBusy(n, VersionMeta.Load(n)?.Id ?? n)).ToList();
-        if (busy.Count > 0)
-        {
-            StatusText.Text = "正在下载的版本不能删除：" + string.Join("、", busy);
-            return;
-        }
-
+        var failed = FailedVersions();
+        var (netBytes, netCount) = NetCache.SizeInfo();
+        string message = failed.Count > 0
+            ? $"将清除翻译缓存、{netCount} 项网络缓存，并删除 {failed.Count} 个下载失败的版本（{SizeText(failed.Sum(f => f.Bytes))}）：\n"
+                + string.Join("、", failed.Select(f => f.Name))
+            : $"将清除翻译缓存与 {netCount} 项网络缓存（{SizeText(netBytes)}）。";
         var dialog = new ContentDialog
         {
-            Title = "删除版本",
-            Content = $"确定删除 {names.Count} 个版本吗？版本文件将一并删除，不可恢复。",
-            PrimaryButtonText = "删除",
+            Title = "清除缓存",
+            Content = message,
+            PrimaryButtonText = "清除",
             CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
 
-        var failed = new List<string>();
-        foreach (string name in names)
+        Translator.ClearCache();
+        NetCache.Clear();
+        var deleteFailed = new List<string>();
+        foreach (var (name, _) in failed)
         {
             try
             {
@@ -127,13 +108,20 @@ public sealed partial class StoragePage : Page
             }
             catch
             {
-                failed.Add(name);
+                deleteFailed.Add(name);
             }
         }
-        RefreshVersions();
-        StatusText.Text = failed.Count == 0
-            ? $"已删除 {names.Count} 个版本"
-            : "删除失败：" + string.Join("、", failed);
+        RefreshCacheStatus();
+        RefreshVersionSummary();
+        CacheNote.Text = deleteFailed.Count == 0
+            ? "已清除缓存"
+            : "部分失败版本删除失败：" + string.Join("、", deleteFailed);
+    }
+
+    /// <summary>版本批量管理放在子页里，这里只做入口。</summary>
+    private void OpenVersions_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(StorageVersionsPage));
     }
 
     private static string SizeText(long bytes) => bytes switch
@@ -145,13 +133,13 @@ public sealed partial class StoragePage : Page
 
     private async void Reset_Click(object sender, RoutedEventArgs e)
     {
+        // 不设默认按钮（无蓝色高亮），避免用户把高亮当成「确定」误点
         var dialog = new ContentDialog
         {
             Title = "重置游戏",
             Content = "真的要重置吗？将删除本用户下的全部内容：版本、存档、资源文件、Mod 库、缓存，并恢复默认设置，不可恢复。",
             PrimaryButtonText = "真的",
             CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
@@ -171,7 +159,7 @@ public sealed partial class StoragePage : Page
         AppSettings.Reset();
         Translator.ClearCache();
         RefreshCacheStatus();
-        RefreshVersions();
-        StatusText.Text = error == null ? "已重置全部内容" : "部分内容删除失败：" + error;
+        RefreshVersionSummary();
+        CacheNote.Text = error == null ? "已重置全部内容" : "部分内容删除失败：" + error;
     }
 }

@@ -9,14 +9,58 @@ public sealed record LoaderBuild(string Display, string Version);
 /// <summary>列出某 MC 版本可用的 Forge / Fabric / NeoForge 加载器版本（最新在前），供安装页手动选择。</summary>
 public static class LoaderVersions
 {
+    // ===== 磁盘缓存：先显示上次列表，再后台刷新 =====
+
+    private static string CacheKey(string loader, string mcVersion) => $"loader-builds-{loader}-{mcVersion}";
+
+    /// <summary>读磁盘缓存里的构建列表（同步、不联网）；没有缓存返回 null。</summary>
+    public static List<LoaderBuild>? CachedBuilds(string loader, string mcVersion)
+    {
+        string? json = NetCache.Get(CacheKey(loader, mcVersion));
+        if (json == null) return null;
+        try
+        {
+            var arr = JsonNode.Parse(json)?.AsArray();
+            if (arr == null) return null;
+            var list = new List<LoaderBuild>();
+            foreach (var node in arr)
+            {
+                string display = node?["d"]?.GetValue<string>() ?? "";
+                string version = node?["v"]?.GetValue<string>() ?? "";
+                if (version.Length == 0) continue;
+                list.Add(new LoaderBuild(display, version));
+            }
+            return list;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>缓存新鲜度描述，如「10 分钟前」。</summary>
+    public static string AgeText(string loader, string mcVersion) => NetCache.AgeText(CacheKey(loader, mcVersion));
+
+    private static void SaveBuilds(string loader, string mcVersion, List<LoaderBuild> list)
+    {
+        if (list.Count == 0) return; // 空列表不覆盖旧缓存
+        var arr = new JsonArray();
+        foreach (var b in list)
+        {
+            arr.Add(new JsonObject { ["d"] = b.Display, ["v"] = b.Version });
+        }
+        NetCache.Set(CacheKey(loader, mcVersion), arr.ToJsonString());
+    }
+
     public static async Task<List<LoaderBuild>> ForgeAsync(string mcVersion, string mirror, CancellationToken ct = default)
     {
+        List<LoaderBuild>? result = null;
         // BMCLAPI 聚合接口：该 MC 版本的全部 Forge 构建（含 build 号，数据最完整）
         try
         {
             var arr = JsonNode.Parse(await McHttp.Client.GetStringAsync(
                 $"https://bmclapi2.bangbang93.com/forge/minecraft/{mcVersion}", ct))!.AsArray();
-            return arr.Select(n => n!.AsObject())
+            result = arr.Select(n => n!.AsObject())
                 .OrderByDescending(o => o["build"]!.GetValue<long>())
                 .Select(o => new LoaderBuild(
                     $"{o["version"]!.GetValue<string>()}（build {o["build"]!.GetValue<long>()}）",
@@ -25,21 +69,26 @@ public static class LoaderVersions
         }
         catch (Exception ex) when (ex is not OperationCanceledException) { /* 落到 maven 元数据 */ }
 
-        // 回退：maven 元数据，按 MC 版本前缀过滤
-        const string rel = "net/minecraftforge/forge/maven-metadata.xml";
-        string? xml = await TryGetAsync(new[]
+        if (result == null)
         {
-            "https://files.minecraftforge.net/" + rel,
-            "https://maven.minecraftforge.net/" + rel,
-            "https://bmclapi2.bangbang93.com/maven/" + rel,
-        }, ct);
-        if (xml == null) return new();
-        return VersionsFromMetadata(xml)
-            .Where(v => v.StartsWith(mcVersion + "-", StringComparison.Ordinal))
-            .Select(v => v[(mcVersion.Length + 1)..])
-            .OrderByDescending(v => v, SegmentComparer.Instance)
-            .Select(v => new LoaderBuild(v, v))
-            .ToList();
+            // 回退：maven 元数据，按 MC 版本前缀过滤
+            const string rel = "net/minecraftforge/forge/maven-metadata.xml";
+            string? xml = await TryGetAsync(new[]
+            {
+                "https://files.minecraftforge.net/" + rel,
+                "https://maven.minecraftforge.net/" + rel,
+                "https://bmclapi2.bangbang93.com/maven/" + rel,
+            }, ct);
+            if (xml == null) return new();
+            result = VersionsFromMetadata(xml)
+                .Where(v => v.StartsWith(mcVersion + "-", StringComparison.Ordinal))
+                .Select(v => v[(mcVersion.Length + 1)..])
+                .OrderByDescending(v => v, SegmentComparer.Instance)
+                .Select(v => new LoaderBuild(v, v))
+                .ToList();
+        }
+        SaveBuilds("forge", mcVersion, result);
+        return result;
     }
 
     public static async Task<List<LoaderBuild>> FabricAsync(string mcVersion, string mirror, CancellationToken ct = default)
@@ -51,10 +100,12 @@ public static class LoaderVersions
             : new[] { $"https://meta.fabricmc.net/{rel}", $"https://bmclapi2.bangbang93.com/fabric-meta/{rel}" };
         string? json = await TryGetAsync(urls, ct);
         if (json == null) return new();
-        return JsonNode.Parse(json)!.AsArray()
+        var list = JsonNode.Parse(json)!.AsArray()
             .Select(n => n!["loader"]!["version"]!.GetValue<string>())
             .Select(v => new LoaderBuild(v, v))
             .ToList();
+        SaveBuilds("fabric", mcVersion, list);
+        return list;
     }
 
     public static async Task<List<LoaderBuild>> NeoForgeAsync(string mcVersion, string mirror, CancellationToken ct = default)
@@ -69,11 +120,13 @@ public static class LoaderVersions
             : new[] { $"https://maven.neoforged.net/releases/{rel}", $"https://bmclapi2.bangbang93.com/maven/{rel}" };
         string? xml = await TryGetAsync(urls, ct);
         if (xml == null) return new();
-        return VersionsFromMetadata(xml)
+        var list = VersionsFromMetadata(xml)
             .Where(v => v.StartsWith(prefix, StringComparison.Ordinal))
             .OrderByDescending(v => v, SegmentComparer.Instance)
             .Select(v => new LoaderBuild(v, v))
             .ToList();
+        SaveBuilds("neoforge", mcVersion, list);
+        return list;
     }
 
     /// <summary>1.21.1 → "21.1."，1.21 → "21.0."，1.20.4 → "20.4."。</summary>

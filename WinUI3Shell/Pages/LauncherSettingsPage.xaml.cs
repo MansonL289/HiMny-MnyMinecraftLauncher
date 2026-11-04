@@ -62,13 +62,21 @@ public sealed partial class LauncherSettingsPage : Page
     }
 
     /// <summary>保存网络代理。McHttp.Client 在启动时创建，改完必须重启才生效。</summary>
-    private void SaveProxy_Click(object sender, RoutedEventArgs e)
+    private async void SaveProxy_Click(object sender, RoutedEventArgs e)
     {
         string url = ProxyBox.Text.Trim();
         AppSettings.ProxyUrl = url; // 留空即清空代理
         ProxyBox.Text = url;
-        ProxyStatus.Text = url.Length == 0
-            ? "已清空代理，重启启动器后不再走代理。"
-            : "代理已保存，重启启动器后生效。";
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "代理设置已保存",
+            Content = url.Length == 0
+                ? "已清空代理，重启启动器后不再走代理。"
+                : "重启启动器后生效。",
+            CloseButtonText = "好",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        await dialog.ShowAsync();
     }
 }

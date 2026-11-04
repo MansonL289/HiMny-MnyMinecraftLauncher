@@ -15,6 +15,33 @@ public static class OptiFine
     {
         string url = $"https://bmclapi2.bangbang93.com/optifine/{mcVersion}";
         string json = await McHttp.Client.GetStringAsync(url, ct);
+        NetCache.Set(CacheKey(mcVersion), json);
+        return ParseList(json, mcVersion);
+    }
+
+    /// <summary>磁盘缓存里的 OptiFine 列表（同步、不联网）；没有缓存返回 null。</summary>
+    public static List<OfVersion>? CachedList(string mcVersion)
+    {
+        string? json = NetCache.Get(CacheKey(mcVersion));
+        if (json == null) return null;
+        try
+        {
+            return ParseList(json, mcVersion);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>缓存新鲜度描述，如「5 分钟前」。</summary>
+    public static string AgeText(string mcVersion) => NetCache.AgeText(CacheKey(mcVersion));
+
+    private static string CacheKey(string mcVersion) => $"optifine-{mcVersion}";
+
+    /// <summary>解析 BMCLAPI 返回的 OptiFine 列表 json。</summary>
+    public static List<OfVersion> ParseList(string json, string mcVersion)
+    {
         var array = JsonNode.Parse(json)?.AsArray() ?? new JsonArray();
         var list = new List<OfVersion>();
         foreach (var node in array)

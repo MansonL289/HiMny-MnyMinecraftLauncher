@@ -13,6 +13,33 @@ public static class LiteLoader
     public static async Task<List<LlVersion>> ListAsync(CancellationToken ct = default)
     {
         string json = await McHttp.Client.GetStringAsync("https://bmclapi2.bangbang93.com/liteloader/list", ct);
+        NetCache.Set(CacheKey, json);
+        return ParseList(json);
+    }
+
+    private const string CacheKey = "liteloader-list";
+
+    /// <summary>磁盘缓存里的 LiteLoader 列表（同步、不联网）；没有缓存返回 null。</summary>
+    public static List<LlVersion>? CachedList()
+    {
+        string? json = NetCache.Get(CacheKey);
+        if (json == null) return null;
+        try
+        {
+            return ParseList(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>缓存新鲜度描述，如「1 小时前」。</summary>
+    public static string AgeText() => NetCache.AgeText(CacheKey);
+
+    /// <summary>解析 BMCLAPI 的 LiteLoader 列表 json。</summary>
+    public static List<LlVersion> ParseList(string json)
+    {
         var array = JsonNode.Parse(json)?.AsArray() ?? new JsonArray();
         var list = new List<LlVersion>();
         foreach (var node in array)

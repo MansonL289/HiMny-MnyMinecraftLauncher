@@ -134,31 +134,45 @@ public sealed partial class VersionDetailPage : Page
             LoaderVersionStatus.Text = "将使用最新 Quilt Loader";
             return;
         }
-        LoaderVersionCombo.ItemsSource = items;
-        LoaderVersionCombo.SelectedIndex = 0;
-        LoaderVersionStatus.Text = "正在获取可用版本…";
+
+        string cacheLoader = LoaderName(loaderIndex).ToLowerInvariant();
+
+        // 本轮会话刚拉过（支持性检测已完成）：直接显示，无需再转圈
+        if (_buildsCache.TryGetValue(loaderIndex, out List<LoaderBuild>? known) && known is { Count: > 0 })
+        {
+            FillLoaderVersions(items, known);
+            LoaderVersionStatus.Text = $"共 {known.Count} 个可用版本";
+            return;
+        }
+
+        // 还没拉过：先立即显示磁盘缓存，再联网刷新
+        var cached = LoaderVersions.CachedBuilds(cacheLoader, _versionId);
+        if (cached is { Count: > 0 })
+        {
+            FillLoaderVersions(items, cached);
+            LoaderVersionStatus.Text =
+                $"显示缓存（{LoaderVersions.AgeText(cacheLoader, _versionId)}），正在刷新…";
+        }
+        else
+        {
+            LoaderVersionCombo.ItemsSource = items;
+            LoaderVersionCombo.SelectedIndex = 0;
+            LoaderVersionStatus.Text = "正在获取可用版本…";
+        }
+
         try
         {
-            // 支持性检测已缓存则直接用，否则现场拉取
-            if (!_buildsCache.TryGetValue(loaderIndex, out List<LoaderBuild>? builds))
+            string mirror = AppSettings.DownloadMirror;
+            List<LoaderBuild> builds = loaderIndex switch
             {
-                string mirror = AppSettings.DownloadMirror;
-                builds = loaderIndex switch
-                {
-                    1 => await LoaderVersions.FabricAsync(_versionId, mirror, cts.Token),
-                    2 => await LoaderVersions.ForgeAsync(_versionId, mirror, cts.Token),
-                    3 => await LoaderVersions.NeoForgeAsync(_versionId, mirror, cts.Token),
-                    _ => new(),
-                };
-            }
+                1 => await LoaderVersions.FabricAsync(_versionId, mirror, cts.Token),
+                2 => await LoaderVersions.ForgeAsync(_versionId, mirror, cts.Token),
+                3 => await LoaderVersions.NeoForgeAsync(_versionId, mirror, cts.Token),
+                _ => new(),
+            };
             if (seq != _versionLoadSeq) return; // 期间又切换了加载器，丢弃结果
-            foreach (var b in builds.Take(200))
-            {
-                items.Add(new LoaderVersionOption(b.Display, b.Version));
-            }
-            // 用新列表实例整体替换，避免 ComboBox 缓存旧项导致显示空白
-            LoaderVersionCombo.ItemsSource = items.ToList();
-            LoaderVersionCombo.SelectedIndex = 0;
+            _buildsCache[loaderIndex] = builds;
+            FillLoaderVersions(items, builds);
             LoaderVersionStatus.Text = builds.Count == 0
                 ? "该加载器没有适配此游戏版本的构建。"
                 : $"共 {builds.Count} 个可用版本";
@@ -166,13 +180,29 @@ public sealed partial class VersionDetailPage : Page
         catch (System.OperationCanceledException)
         {
             if (seq != _versionLoadSeq) return;
-            LoaderVersionStatus.Text = "获取版本列表超时，请检查网络（可改用自动选择）。";
+            LoaderVersionStatus.Text = cached is { Count: > 0 }
+                ? $"网络超时，继续显示缓存（{LoaderVersions.AgeText(cacheLoader, _versionId)}）"
+                : "获取版本列表超时，请检查网络（可改用自动选择）。";
         }
         catch (Exception ex)
         {
             if (seq != _versionLoadSeq) return;
-            LoaderVersionStatus.Text = $"获取版本列表失败：{ex.Message}（可改用自动选择）";
+            LoaderVersionStatus.Text = cached is { Count: > 0 }
+                ? $"网络获取失败，继续显示缓存（{LoaderVersions.AgeText(cacheLoader, _versionId)}）：{ex.Message}"
+                : $"获取版本列表失败：{ex.Message}（可改用自动选择）";
         }
+    }
+
+    /// <summary>用「自动选择 + 构建列表」整体替换下拉框内容（新列表实例，避免 ComboBox 复用到旧项）。</summary>
+    private void FillLoaderVersions(List<LoaderVersionOption> head, List<LoaderBuild> builds)
+    {
+        var items = new List<LoaderVersionOption>(head);
+        foreach (var b in builds.Take(200))
+        {
+            items.Add(new LoaderVersionOption(b.Display, b.Version));
+        }
+        LoaderVersionCombo.ItemsSource = items;
+        LoaderVersionCombo.SelectedIndex = 0;
     }
 
     private void Start_Click(object sender, RoutedEventArgs e)

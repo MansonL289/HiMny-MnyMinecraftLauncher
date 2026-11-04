@@ -5,73 +5,58 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
-        <!-- 缓存 -->
-        <StackPanel Spacing="8">
-            <TextBlock Text="缓存" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <StackPanel Orientation="Horizontal" Spacing="12">
-                <Button Content="清除缓存" Click="ClearCache_Click" />
+        <StackPanel Spacing="24" MaxWidth="640" HorizontalAlignment="Left">
+            <!-- 缓存 -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="缓存" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button Content="清除缓存" Click="ClearCache_Click" />
+                    <TextBlock
+                        x:Name="CacheStatus"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
                 <TextBlock
-                    x:Name="CacheStatus"
-                    VerticalAlignment="Center"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            </StackPanel>
-        </StackPanel>
-
-        <!-- 版本：勾选可多选删除，点击单项进入该版本的存档批量删除 -->
-        <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*" RowSpacing="8">
-            <TextBlock
-                Text="版本"
-                Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12">
-                <Button Click="SelectAll_Click" Content="全选" />
-                <Button
-                    x:Name="DeleteButton"
-                    Click="DeleteSelected_Click"
-                    Content="删除所选"
-                    Foreground="#FF6363"
-                    IsEnabled="False" />
-                <TextBlock
-                    x:Name="StatusText"
-                    VerticalAlignment="Center"
+                    x:Name="CacheNote"
+                    FontSize="12"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    TextTrimming="CharacterEllipsis" />
+                    TextWrapping="Wrap" />
             </StackPanel>
-            <ListView
-                x:Name="VersionList"
-                Grid.Row="2"
-                IsItemClickEnabled="True"
-                ItemClick="VersionList_ItemClick">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <Grid ColumnDefinitions="Auto,*">
-                            <CheckBox
-                                IsChecked="{Binding IsChecked, Mode=TwoWay}"
-                                Tag="{Binding Name}"
-                                VerticalAlignment="Center"
-                                Checked="VersionCheck_Changed"
-                                Unchecked="VersionCheck_Changed" />
-                            <TextBlock
-                                Grid.Column="1"
-                                Margin="8,0,0,0"
-                                VerticalAlignment="Center"
-                                Text="{Binding Name}"
-                                TextTrimming="CharacterEllipsis" />
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-        </Grid>
 
-        <!-- 重置 -->
-        <StackPanel Grid.Row="2" Spacing="8">
-            <TextBlock Text="重置" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <!-- 版本：点进子页批量删除 -->
             <Button
-                HorizontalAlignment="Left"
-                Click="Reset_Click"
-                Content="重置游戏"
-                Foreground="#FF6363" />
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch"
+                Padding="16,12"
+                CornerRadius="6"
+                Click="OpenVersions_Click">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <FontIcon Glyph="&#xE8B7;" FontSize="20" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="版本" FontWeight="SemiBold" />
+                        <TextBlock
+                            x:Name="VersionSummary"
+                            FontSize="12"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <FontIcon
+                        Grid.Column="2"
+                        Glyph="&#xE76C;"
+                        FontSize="12"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                </Grid>
+            </Button>
+
+            <!-- 重置 -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="重置" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <Button
+                    HorizontalAlignment="Left"
+                    Click="Reset_Click"
+                    Content="重置游戏"
+                    Foreground="#FF6363" />
+            </StackPanel>
         </StackPanel>
-    </Grid>
     </ScrollViewer>
 </Page>

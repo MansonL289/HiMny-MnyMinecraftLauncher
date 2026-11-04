@@ -11,7 +11,7 @@
                 <TextBlock Text="MnyMinecraftLauncher Beta" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <TextBlock
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="版本号 Beta_1.4.20261101" />
+                    Text="版本号 Beta_2.0.20261104" />
             </StackPanel>
 
             <StackPanel Spacing="8">

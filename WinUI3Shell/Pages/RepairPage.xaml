@@ -22,37 +22,33 @@
                         x:Name="CheckText"
                         TextWrapping="Wrap"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Button
-                            x:Name="FixButton"
-                            Click="Fix_Click"
-                            Content="一键修复"
-                            IsEnabled="False" />
-                        <TextBlock
-                            x:Name="FixStatus"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
+                    <Button
+                        x:Name="FixButton"
+                        HorizontalAlignment="Left"
+                        Click="Fix_Click"
+                        Content="一键修复"
+                        IsEnabled="False" />
+                    <TextBlock
+                        x:Name="FixStatus"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap" />
                 </StackPanel>
 
                 <!-- 从其他启动器导入 -->
                 <StackPanel Spacing="8">
                     <TextBlock Text="从其他启动器导入" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Button
-                            x:Name="PickButton"
-                            Click="PickRoot_Click"
-                            Content="选择 .minecraft 目录" />
-                        <TextBlock
-                            x:Name="RootText"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            MaxWidth="520"
-                            TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
+                    <Button
+                        x:Name="PickButton"
+                        HorizontalAlignment="Left"
+                        Click="PickRoot_Click"
+                        Content="选择 .minecraft 目录" />
+                    <TextBlock
+                        x:Name="RootText"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        MaxWidth="520"
+                        TextTrimming="CharacterEllipsis" />
                     <ListView
                         x:Name="ImportList"
                         MaxHeight="240"
