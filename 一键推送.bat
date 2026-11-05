@@ -38,6 +38,9 @@ git -c i18n.logOutputEncoding=gbk commit -m "!MSG!"
 if errorlevel 1 goto :CMDFAIL
 
 :NOCHANGE
+set "TRIED=0"
+
+:DOPUSH
 git rev-parse --abbrev-ref "@{u}" >nul 2>nul
 if errorlevel 1 (
     echo   首次推送，正在设置上游分支...
@@ -45,10 +48,35 @@ if errorlevel 1 (
 ) else (
     git push
 )
-if errorlevel 1 goto :PUSHFAIL
+if errorlevel 1 goto :TRYFIX
 
 echo.
 echo   [完成] 已推送到远程仓库
+goto :END
+
+:TRYFIX
+if "!TRIED!"=="1" goto :PUSHFAIL
+set "TRIED=1"
+echo.
+echo   [提示] 远程有本地没有的提交，正在自动合并后重试...
+git fetch origin
+if errorlevel 1 goto :PUSHFAIL
+
+set "BR="
+git rev-parse --abbrev-ref HEAD > "%TEMP%\mny_branch.txt" 2>nul
+set /p "BR=" < "%TEMP%\mny_branch.txt"
+del "%TEMP%\mny_branch.txt" >nul 2>nul
+
+git rev-parse --verify --quiet "origin/!BR!" >nul 2>nul
+if errorlevel 1 goto :NOUPSTREAM
+
+git --no-pager merge --no-edit --allow-unrelated-histories "origin/!BR!"
+if errorlevel 1 goto :CONFLICT
+goto :DOPUSH
+
+:NOUPSTREAM
+echo.
+echo   [失败] 远程没有 !BR! 分支，需要你手动处理分支名不一致的问题
 goto :END
 
 :CANCEL
@@ -67,6 +95,11 @@ goto :END
 :CMDFAIL
 echo.
 echo   [失败] 提交失败，请看上面的 Git 报错
+goto :END
+
+:CONFLICT
+echo.
+echo   [失败] 自动合并出现冲突，请手动解决后再推送
 goto :END
 
 :PUSHFAIL
