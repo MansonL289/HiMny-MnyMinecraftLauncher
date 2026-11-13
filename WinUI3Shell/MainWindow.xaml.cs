@@ -25,9 +25,9 @@ public sealed partial class MainWindow : Window
 
         Title = "MnyLauncher";
         SystemBackdrop = new MicaBackdrop();
-        // 启动器自身窗口：屏幕工作区的 5/12 大小并居中（与“游戏窗口大小”设置无关）
+        // 启动器自身窗口：屏幕工作区的 2/3 大小并居中（与“游戏窗口大小”设置无关）
         var workArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
-        int winW = workArea.Width * 5 / 12, winH = workArea.Height * 5 / 12;
+        int winW = workArea.Width * 2 / 3, winH = workArea.Height * 2 / 3;
         AppWindow.Resize(new SizeInt32(winW, winH));
         AppWindow.Move(new PointInt32(
             workArea.X + (workArea.Width - winW) / 2,
